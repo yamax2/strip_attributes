@@ -37,6 +37,27 @@ module StripAttributes
   MULTIBYTE_BLANK = /[[:blank:]#{MULTIBYTE_WHITE}]/
   MULTIBYTE_SUPPORTED  = "\u0020" == " "
 
+
+  # returns attributes and stored attributes of record as a hash
+  #
+  # Record example:
+  #   class MyRecord < ActiveRecord::Base
+  #     validates :name, presence: true, uniqueness: {case_sensitive: false}
+  #     store_accessor :arguments, :number, :comment
+  #
+  #     strip_attributes only: [:name, :number, :comment]
+  #   end
+  def self.record_attributes(record)
+    attributes = record.attributes
+    return attributes unless record.class.respond_to?(:stored_attributes)
+
+    record
+      .class
+      .stored_attributes
+      .keys
+      .reduce(attributes) { |attrs, stored_attrs| attrs.merge! record.public_send(stored_attrs) }
+  end
+
   def self.strip(record_or_string, options = nil)
     if record_or_string.respond_to?(:attributes)
       strip_record(record_or_string, options)
@@ -46,12 +67,12 @@ module StripAttributes
   end
 
   def self.strip_record(record, options = nil)
-    attributes = narrow(record.attributes, options)
+    attributes = narrow(record_attributes(record), options)
 
     attributes.each do |attr, value|
       original_value = value
       value = strip_string(value, options)
-      record[attr] = value if original_value != value
+      record.public_send("#{attr}=", value) if original_value != value
     end
 
     record
